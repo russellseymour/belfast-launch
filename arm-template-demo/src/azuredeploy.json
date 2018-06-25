@@ -1,0 +1,185 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {},
+    "variables": {
+        "location": "[resourceGroup().location]",
+        "name": {
+            "vnet": "belfast-demo-vnet",
+            "subnet": "belfast-demo-subnet",
+            "nic": "belfast-demo-vm-nic",
+            "group": "belfast-demo-nsg",
+            "vm": "belfast-demo-vm",
+            "computer": "belfast-demo-vm"
+        },
+        "network": {
+            "vnet": {
+                "prefix": "192.168.0.0/24"
+            },
+            "subnet": {
+                "prefix": "192.168.0.0/24"
+            }
+        },
+        "vnetID" : "[resourceId('Microsoft.Network/virtualNetworks', variables('name').vnet)]",
+        "subnet" : "[concat(variables('vnetID'),'/subnets/', variables('name').subnet)]"
+    },
+    "resources": [
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('name').vnet]",
+            "location": "[variables('location')]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('network').vnet.prefix]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('name').subnet]",
+                        "properties": {
+                            "addressPrefix": "[variables('network').subnet.prefix]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2017-06-01",
+            "type": "Microsoft.Network/networkSecurityGroups",
+            "name": "[variables('name').group]",
+            "location": "[variables('location')]",
+            "properties": {
+                "securityRules": [
+                    {
+                        "name": "HTTP-80",
+                        "properties": {
+                            "description": "Allow HTTP port 80 traffic",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "80",
+                            "sourceAddressPrefix": "Internet",
+                            "destinationAddressPrefix": "VirtualNetwork",
+                            "access": "Allow",
+                            "priority": 100,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "HTTP-443",
+                        "properties": {
+                            "description": "Allow HTTP port 443 traffic",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "443",
+                            "sourceAddressPrefix": "Internet",
+                            "destinationAddressPrefix": "VirtualNetwork",
+                            "access": "Allow",
+                            "priority": 110,
+                            "direction": "Inbound"
+                        }
+                    },
+                    {
+                        "name": "SSH-22",
+                        "properties": {
+                            "description": "Allow SSH port 22 traffic",
+                            "protocol": "Tcp",
+                            "sourcePortRange": "*",
+                            "destinationPortRange": "22",
+                            "sourceAddressPrefix": "*",
+                            "destinationAddressPrefix": "VirtualNetwork",
+                            "access": "Allow",
+                            "priority": 120,
+                            "direction": "Inbound"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('name').nic]",
+            "apiVersion": "2015-06-15",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[concat('Microsoft.Network/virtualNetworks/', variables('name').vnet)]",
+                "[concat('Microsoft.Network/networkSecurityGroups/', variables('name').group)]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[variables('subnet')]"
+                            }
+                        }
+                    }
+                ],
+                "networkSecurityGroup": {
+                    "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('name').group)]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('name').vm]",
+            "apiVersion": "2016-04-30-preview",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[concat('Microsoft.Network/networkInterfaces/', variables('name').nic)]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "Standard_DS1"
+                },
+                "osProfile": {
+                    "adminUsername": "azure",
+                    "computerName": "[variables('name').computer]",
+                    "linuxConfiguration": {
+                        "disablePasswordAuthentication": true,
+                        "ssh": {
+                            "publicKeys": [
+                                {
+                                    "path": "/home/azure/.ssh/authorized_keys",
+                                    "keyData": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDU56RXZd2AbthjPXKc6dWs9kBxBeUQjQsiJHu5rHaAqKBWvS3XtgYDnWg8p0U2wvkQGGHpowPaP0AGhyRgE2xvsglaT0OnV1vF7zt/24zhoYkfbWtRuEsQCI9ZKs/q2Fg8Wf6q//eRaAi7iH4/MPMuYr+pBVVZp+bcYhne8CJOi4w0VIcSIk462WyqOEKZJk+f7gdkqxk+2yzo3Rqh25+C5j4NuXPmw8H4ccjPeL2E5snfLSZHIe/iCwXnVEdmpsqvaMuVs/LuQ/mJ0Rv8rjwtd8HKPlZJN/M4bt4U8CB8a0dsn+skZXsu7CUHEVwrol/jNzF1hTOA6Fy1jJFvy2yP russells@rjs-mac-01.local"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "canonical",
+                        "offer": "ubuntuserver",
+                        "sku": "16.04-LTS",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "belfast-demo-os-disk",
+                        "caching": "ReadOnly",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('name').nic)]",
+                            "properties": {
+                                "primary": true
+                            }
+                        }
+                    ]
+                },
+                "diagnosticsProfile": {
+                    "bootDiagnostics": {
+                        "enabled": false
+                    }
+                }
+            }
+        }
+    ],
+    "outputs": {}
+}
