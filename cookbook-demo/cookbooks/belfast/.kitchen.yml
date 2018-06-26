@@ -14,6 +14,9 @@ provisioner:
 
 verifier:
   name: inspec
+  # reporter: junit:tk_inspec_verify.xml
+  format: junit
+  output: tk_inspec_verify.xml
 
 transport:
   ssh_key: ~/.ssh/id_kitchen-azurerm
@@ -22,6 +25,8 @@ platforms:
   - name: ubuntu-16.04
     driver:
       image_urn: Canonical:UbuntuServer:16.04-LTS:latest
+      vm_tags:
+        owner: Russell Seymour
 
 suites:
   - name: default
